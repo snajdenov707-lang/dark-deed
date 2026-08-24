@@ -13,6 +13,8 @@ import { useMemo, useState } from "react";
 import { KraftBackground } from "@/components/KraftBackground";
 import { ItemIcon } from "@/components/ItemIcon";
 import { getMenuItem } from "@/lib/menu";
+import { useMenu } from "@/lib/api";
+import { useToast } from "@/components/Toast";
 import {
   useCart,
   lineUnitPrice,
@@ -32,7 +34,13 @@ export default function ProductPage() {
   const params = useParams();
   const router = useRouter();
   const id = Number(params?.id);
-  const item = useMemo(() => getMenuItem(id), [id]);
+  const menuQ = useMenu();
+  const toast = useToast();
+  // Приоритет: свежие данные из БД, иначе — локальный fallback
+  const item = useMemo(
+    () => menuQ.data?.find((m) => m.id === id) ?? getMenuItem(id),
+    [menuQ.data, id]
+  );
 
   const [size, setSize] = useState<SizeKind>("350");
   const [milk, setMilk] = useState<MilkKind>("regular");
@@ -74,6 +82,7 @@ export default function ProductPage() {
       quantity
     );
     notify("success");
+    toast.show(`${item.name} × ${quantity} — добавлено`, "success");
     router.push("/cart");
   };
 

@@ -1,19 +1,23 @@
 "use client";
 
 /** ── СТАТУС ЗАКАЗА ──────────────────────────────
- *  - Читает последний оплаченный заказ из sessionStorage
- *  - При маунте — чистит корзину (заказ уже оплачен)
- *  - Пустое состояние если заказов нет
+ *  - useActiveOrder — последний активный из БД (real-time polling 10с)
+ *  - Fallback: sessionStorage (для юзеров вне TG / demo)
+ *  - «Отменить» → useCancelOrder → БД
+ *  - «Написать бариста» → t.me/@Dark_Deed_Test_Bot
  ─────────────────────────────────────────────── */
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { BottomNav } from "@/components/BottomNav";
 import { KraftBackground } from "@/components/KraftBackground";
-import { useCart, lineTotal, MILK_LABEL, SIZE_LABEL, type CartLine } from "@/stores/cart-store";
-import type { MenuItem } from "@/lib/types";
+import { useActiveOrder, useCancelOrder, type DbOrder, type DbOrderItem } from "@/lib/api";
+import { useToast } from "@/components/Toast";
+import { tap, notify } from "@/lib/haptic";
+import { MILK_LABEL, SIZE_LABEL, type CartLine } from "@/stores/cart-store";
+import { getMenuItem } from "@/lib/menu";
 
-interface StoredOrder {
+interface FallbackOrder {
   id: string;
   createdAt: string;
   lines: CartLine[];
@@ -29,6 +33,11 @@ const STEPS = [
   { key: "ready",     label: "Готов"   },
   { key: "issued",    label: "Выдан"   },
 ];
+
+function stepIndexOf(status: string): number {
+  const i = STEPS.findIndex((s) => s.key === status);
+  return i < 0 ? 0 : i;
+}
 
 function stepStatus(currentIdx: number, i: number): "done" | "active" | "pending" {
   if (i < currentIdx) return "done";
@@ -62,42 +71,85 @@ function StepIcon({ status }: { status: string }) {
   );
 }
 
-function lineNote(item: MenuItem, line: CartLine) {
+function dbItemNote(item: DbOrderItem) {
+  const parts: string[] = [];
+  if (item.size) parts.push(SIZE_LABEL[item.size]);
+  if (item.milk) parts.push(MILK_LABEL[item.milk].toLowerCase());
+  if (item.extra_shots > 0) parts.push(`+${item.extra_shots} шот`);
+  return parts.join(" · ");
+}
+
+function fbLineNote(line: CartLine) {
   const parts: string[] = [];
   if (line.size) parts.push(SIZE_LABEL[line.size]);
   if (line.milk) parts.push(MILK_LABEL[line.milk].toLowerCase());
   if (line.extraShots && line.extraShots > 0) parts.push(`+${line.extraShots} шот`);
-  return parts.length ? parts.join(" · ") : item.description;
+  return parts.length ? parts.join(" · ") : line.item.description;
 }
 
 export default function OrderStatusPage() {
-  const [order, setOrder] = useState<StoredOrder | null>(null);
-  const clear = useCart((s) => s.clear);
+  const dbOrderQ = useActiveOrder();
+  const cancelOrder = useCancelOrder();
+  const toast = useToast();
+  const [fallbackOrder, setFallbackOrder] = useState<FallbackOrder | null>(null);
 
-  // Читаем последний заказ + чистим корзину на маунте
+  // Читаем sessionStorage fallback (для demo/no-auth)
   useEffect(() => {
     if (typeof window === "undefined") return;
     try {
       const raw = sessionStorage.getItem("dark-deed:last-order");
-      if (raw) setOrder(JSON.parse(raw) as StoredOrder);
+      if (raw) setFallbackOrder(JSON.parse(raw) as FallbackOrder);
     } catch {}
-    clear();
-  }, [clear]);
+  }, []);
+
+  const dbOrder: (DbOrder & { order_items: DbOrderItem[] }) | null = dbOrderQ.data ?? null;
+  const hasDbOrder = !!dbOrder;
+  const hasFallback = !hasDbOrder && !!fallbackOrder && !dbOrderQ.isLoading;
 
   const createdTime = useMemo(() => {
-    if (!order) return "";
+    const iso = dbOrder?.created_at ?? fallbackOrder?.createdAt;
+    if (!iso) return "";
     try {
-      const d = new Date(order.createdAt);
-      return d.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
+      return new Date(iso).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
     } catch { return ""; }
-  }, [order]);
+  }, [dbOrder, fallbackOrder]);
 
-  // Пустое состояние — нет активного заказа
-  if (!order) {
+  const handleCancel = async () => {
+    if (!dbOrder) return;
+    tap("medium");
+    if (!confirm("Отменить заказ?")) return;
+    try {
+      await cancelOrder.mutateAsync(dbOrder.id);
+      notify("success");
+      toast.show("Заказ отменён", "success");
+    } catch (err) {
+      notify("error");
+      toast.show(`Не удалось: ${err instanceof Error ? err.message : String(err)}`, "error");
+    }
+  };
+
+  const handleContactBarista = () => {
+    tap("light");
+    const url = "https://t.me/Dark_Deed_Test_Bot";
+    const tg = (window as unknown as { Telegram?: { WebApp?: { openTelegramLink?: (u: string) => void } } }).Telegram?.WebApp;
+    if (tg?.openTelegramLink) tg.openTelegramLink(url);
+    else window.open(url, "_blank");
+  };
+
+  // ── Пустое состояние ──────────────────────
+  if (dbOrderQ.isLoading) {
+    return (
+      <div style={{ width: "100%", minHeight: "100dvh", background: "radial-gradient(ellipse at top, #241408 0%, #14090580 45%, #0A0503 100%)", display: "flex", alignItems: "center", justifyContent: "center", color: "#A69080", fontFamily: "'Cormorant Garamond', serif", fontStyle: "italic" }}>
+        Загружаем...
+      </div>
+    );
+  }
+
+  if (!hasDbOrder && !hasFallback) {
     return (
       <div style={{ width: "100%", minHeight: "100dvh", background: "radial-gradient(ellipse at top, #241408 0%, #14090580 45%, #0A0503 100%)", display: "flex", flexDirection: "column", position: "relative", overflowX: "hidden" }}>
         <KraftBackground />
-        <div style={{ padding: "0 20px 8px", paddingTop: "calc(var(--top-inset) + 20px)", display: "flex", alignItems: "center", gap: 14, position: "relative", zIndex: 2 }}>
+        <div style={{ padding: "0 20px 8px", paddingTop: "calc(var(--top-inset) + 20px)", position: "relative", zIndex: 2 }}>
           <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 22, fontWeight: 600, color: "#F5E6D3" }}>Заказы</div>
         </div>
         <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 20, padding: 32, textAlign: "center", position: "relative", zIndex: 2 }}>
@@ -112,10 +164,16 @@ export default function OrderStatusPage() {
     );
   }
 
-  const currentStep = 1; // Готовим — статик, real-time добавим в Фазе C
-  const total = order.total;
-  const methodLabel = order.method === "pickup" ? "Самовывоз" : "На месте";
-  const paymentLabel = order.payment === "sbp" ? "СБП" : order.payment === "card" ? "Картой" : "Бонусами";
+  // ── Данные ────────────────────────────────
+  const orderNumber = dbOrder?.order_number ?? fallbackOrder!.id;
+  const currentStep = dbOrder ? stepIndexOf(dbOrder.status) : 1;
+  const scheduledTime = dbOrder?.scheduled_time ?? fallbackOrder!.time;
+  const total = dbOrder ? Number(dbOrder.total) : fallbackOrder!.total;
+  const method = dbOrder?.method ?? fallbackOrder!.method;
+  const payment = dbOrder?.payment_method ?? fallbackOrder!.payment;
+  const methodLabel = method === "pickup" ? "Самовывоз" : "На месте";
+  const paymentLabel = payment === "sbp" ? "СБП" : payment === "card" ? "Картой" : "Бонусами";
+  const isCancelled = dbOrder?.status === "cancelled";
 
   return (
     <div style={{ width: "100%", minHeight: "100dvh", background: "radial-gradient(ellipse at top, #241408 0%, #14090580 45%, #0A0503 100%)", display: "flex", flexDirection: "column", position: "relative", overflowX: "hidden" }}>
@@ -126,14 +184,18 @@ export default function OrderStatusPage() {
         <div>
           <div style={{ fontSize: 11, color: "#A69080", textTransform: "uppercase", letterSpacing: 1.5 }}>Заказ</div>
           <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 22, fontWeight: 600, color: "#F5E6D3", marginTop: 2 }}>
-            {order.id} <span style={{ fontStyle: "italic", color: "#A69080", fontWeight: 400 }}>от {createdTime}</span>
+            {orderNumber} <span style={{ fontStyle: "italic", color: "#A69080", fontWeight: 400 }}>от {createdTime}</span>
           </div>
         </div>
-        <div style={{ width: 44, height: 44, background: "#2C1810", borderRadius: 14, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <button
+          type="button"
+          onClick={handleContactBarista}
+          style={{ width: 44, height: 44, background: "#2C1810", borderRadius: 14, display: "flex", alignItems: "center", justifyContent: "center", border: "none", cursor: "pointer" }}
+        >
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#E8A664" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
             <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67 2 2 0 0 1 2-2.18h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
           </svg>
-        </div>
+        </button>
       </div>
 
       {/* STATUS HERO */}
@@ -149,9 +211,11 @@ export default function OrderStatusPage() {
             </svg>
           </div>
           <div style={{ flex: 1 }}>
-            <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 22, color: "#F5E6D3", fontWeight: 600, lineHeight: 1.1 }}>Готовим...</div>
+            <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 22, color: "#F5E6D3", fontWeight: 600, lineHeight: 1.1 }}>
+              {isCancelled ? "Отменён" : currentStep === 3 ? "Выдан" : currentStep === 2 ? "Готов" : currentStep === 1 ? "Готовим..." : "Принят"}
+            </div>
             <div style={{ fontSize: 12, color: "#A69080", marginTop: 4 }}>
-              будет готов к <span style={{ color: "#E8A664", fontWeight: 600 }}>{order.time}</span>
+              будет готов к <span style={{ color: "#E8A664", fontWeight: 600 }}>{scheduledTime}</span>
             </div>
           </div>
         </div>
@@ -202,23 +266,32 @@ export default function OrderStatusPage() {
       <div className="no-scrollbar" style={{ padding: "0 20px", flex: 1, overflowY: "auto", position: "relative", zIndex: 2 }}>
         <div style={{ fontSize: 11, color: "#A69080", textTransform: "uppercase", letterSpacing: 1.5, marginBottom: 10, fontWeight: 600 }}>В заказе</div>
 
-        {order.lines.map((line, i) => (
-          <div
-            key={line.key}
-            style={{
-              display: "flex", justifyContent: "space-between", alignItems: "center",
-              padding: "12px 0",
-              borderBottom: i < order.lines.length - 1 ? "1px solid rgba(166, 144, 128, 0.12)" : "none",
-            }}
-          >
+        {dbOrder?.order_items?.map((it, i, arr) => (
+          <div key={it.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 0", borderBottom: i < arr.length - 1 ? "1px solid rgba(166, 144, 128, 0.12)" : "none" }}>
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <div style={{ fontSize: 13, color: "#F5E6D3", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {it.menu_item_name} × {it.quantity}
+              </div>
+              <div style={{ fontSize: 11, color: "#A69080", marginTop: 2 }}>
+                {dbItemNote(it) || getMenuItem(it.menu_item_id)?.description || ""}
+              </div>
+            </div>
+            <span style={{ fontFamily: "'Playfair Display', serif", fontSize: 14, color: "#E8A664", fontWeight: 600, flexShrink: 0, marginLeft: 8 }}>
+              {Number(it.total_price).toLocaleString("ru-RU")} ₽
+            </span>
+          </div>
+        ))}
+
+        {!dbOrder && fallbackOrder?.lines.map((line, i, arr) => (
+          <div key={line.key} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 0", borderBottom: i < arr.length - 1 ? "1px solid rgba(166, 144, 128, 0.12)" : "none" }}>
             <div style={{ minWidth: 0, flex: 1 }}>
               <div style={{ fontSize: 13, color: "#F5E6D3", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                 {line.item.name}{line.item.subtitle && ` ${line.item.subtitle}`} × {line.quantity}
               </div>
-              <div style={{ fontSize: 11, color: "#A69080", marginTop: 2 }}>{lineNote(line.item, line)}</div>
+              <div style={{ fontSize: 11, color: "#A69080", marginTop: 2 }}>{fbLineNote(line)}</div>
             </div>
             <span style={{ fontFamily: "'Playfair Display', serif", fontSize: 14, color: "#E8A664", fontWeight: 600, flexShrink: 0, marginLeft: 8 }}>
-              {lineTotal(line)} ₽
+              {(line.item.basePrice * line.quantity).toLocaleString("ru-RU")} ₽
             </span>
           </div>
         ))}
@@ -231,15 +304,30 @@ export default function OrderStatusPage() {
         </div>
       </div>
 
-      {/* FOOTER */}
+      {/* FOOTER ACTIONS */}
       <div style={{ padding: "12px 20px 0", display: "flex", justifyContent: "space-between", alignItems: "center", position: "relative", zIndex: 2 }}>
-        <span style={{ fontSize: 12, color: "#A69080", textDecoration: "underline", cursor: "pointer" }}>Отменить заказ</span>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 16px", background: "#2C1810", borderRadius: 12 }}>
+        {dbOrder && !isCancelled && currentStep < 2 ? (
+          <button
+            type="button"
+            onClick={handleCancel}
+            disabled={cancelOrder.isPending}
+            style={{ background: "transparent", border: "none", fontSize: 12, color: "#dc8290", textDecoration: "underline", cursor: cancelOrder.isPending ? "wait" : "pointer", padding: 4 }}
+          >
+            {cancelOrder.isPending ? "Отменяю..." : "Отменить заказ"}
+          </button>
+        ) : (
+          <span />
+        )}
+        <button
+          type="button"
+          onClick={handleContactBarista}
+          style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 16px", background: "#2C1810", borderRadius: 12, border: "none", cursor: "pointer" }}
+        >
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#E8A664" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
           </svg>
           <span style={{ fontSize: 12, color: "#E8A664", fontWeight: 600 }}>Написать бариста</span>
-        </div>
+        </button>
       </div>
 
       <BottomNav active="orders" />

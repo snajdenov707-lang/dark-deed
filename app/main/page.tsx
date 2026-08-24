@@ -1,21 +1,21 @@
 "use client";
 
 /** ── ГЛАВНАЯ / МЕНЮ ─────────────────────────────
- *  - Реальные вкладки категорий (фильтр)
- *  - Скроллящееся меню (все 14 позиций)
- *  - Hero-карточка = featured-позиция активной категории
- *  - Cart-бейджик — реальное число из Zustand
- *  - GoldPlus добавляет в корзину
+ *  Данные из Supabase (useMenu), fallback на локальный MENU.
+ *  Все кнопки живые: промо → toast, «всё меню →» → скролл,
+ *  вкладки категорий переключают, +/− корзины реальный.
  ─────────────────────────────────────────────── */
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { KraftBackground } from "@/components/KraftBackground";
 import { BottomNav } from "@/components/BottomNav";
 import { ItemIcon } from "@/components/ItemIcon";
-import { MENU, CATEGORIES } from "@/lib/menu";
+import { CATEGORIES } from "@/lib/menu";
+import { useMenu } from "@/lib/api";
 import { useCart, selectTotalCount } from "@/stores/cart-store";
 import { tap } from "@/lib/haptic";
+import { useToast } from "@/components/Toast";
 import type { MenuItem, Category } from "@/lib/types";
 
 function GoldPlus({ size = 38, onClick }: { size?: number; onClick?: (e: React.MouseEvent) => void }) {
@@ -24,18 +24,12 @@ function GoldPlus({ size = 38, onClick }: { size?: number; onClick?: (e: React.M
       type="button"
       onClick={onClick}
       style={{
-        width: size,
-        height: size,
+        width: size, height: size,
         background: "linear-gradient(135deg, #E8A664, #D4AF37)",
         borderRadius: "50%",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
+        display: "flex", alignItems: "center", justifyContent: "center",
         boxShadow: "0 6px 20px rgba(232, 166, 100, 0.35)",
-        flexShrink: 0,
-        border: "none",
-        cursor: "pointer",
-        padding: 0,
+        flexShrink: 0, border: "none", cursor: "pointer", padding: 0,
       }}
       aria-label="Добавить в корзину"
     >
@@ -48,13 +42,24 @@ function GoldPlus({ size = 38, onClick }: { size?: number; onClick?: (e: React.M
   );
 }
 
+const PROMO_INFO: Record<string, { text: string; kind: "info" | "success" }> = {
+  happy:   { text: "Happy Hours: −20% на всё после 21:00 применится автоматически", kind: "success" },
+  bonus:   { text: "+50 бонусов начислим после первого оплаченного заказа", kind: "success" },
+};
+
 export default function MainPage() {
   const [activeCat, setActiveCat] = useState<Category>("espresso");
   const cartCount = useCart(selectTotalCount);
   const addToCart = useCart((s) => s.add);
+  const menuList = useMenu();
+  const menuScrollRef = useRef<HTMLDivElement>(null);
+  const featuredRef = useRef<HTMLDivElement>(null);
+  const toast = useToast();
 
-  // Позиции активной категории
-  const items = useMemo(() => MENU.filter((m) => m.category === activeCat), [activeCat]);
+  const items = useMemo(
+    () => (menuList.data ?? []).filter((m) => m.category === activeCat),
+    [menuList.data, activeCat]
+  );
   const featured = useMemo(() => items.find((m) => m.featured) ?? items[0], [items]);
   const rest = useMemo(() => items.filter((m) => m.id !== featured?.id), [items, featured]);
 
@@ -62,13 +67,19 @@ export default function MainPage() {
     e.preventDefault();
     e.stopPropagation();
     tap("light");
-    // Быстрое добавление — с дефолтными опциями если товар кастомизируемый
     addToCart({
       item,
       size: item.customizable ? "350" : undefined,
       milk: item.customizable ? "regular" : undefined,
       extraShots: 0,
     });
+    toast.show(`${item.name} — в корзине`, "success");
+  };
+
+  const scrollToMenu = () => {
+    tap("light");
+    menuScrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+    featuredRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
   return (
@@ -77,10 +88,8 @@ export default function MainPage() {
         width: "100%",
         minHeight: "100dvh",
         background: "radial-gradient(ellipse at top, #241408 0%, #14090580 45%, #0A0503 100%)",
-        display: "flex",
-        flexDirection: "column",
-        position: "relative",
-        overflowX: "hidden",
+        display: "flex", flexDirection: "column",
+        position: "relative", overflowX: "hidden",
       }}
     >
       <KraftBackground />
@@ -88,19 +97,18 @@ export default function MainPage() {
       {/* ── HEADER ─────────────────────────────── */}
       <div style={{ padding: "0 24px 8px", paddingTop: "calc(var(--top-inset) + 26px)", display: "flex", justifyContent: "space-between", alignItems: "flex-start", position: "relative", zIndex: 2 }}>
         <div>
-          <div className="microcaps" style={{ color: "#6B5A4C" }}>— 20 августа, среда</div>
+          <div className="microcaps" style={{ color: "#6B5A4C" }}>— {new Date().toLocaleDateString("ru-RU", { day: "numeric", month: "long", weekday: "long" })}</div>
           <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 30, fontWeight: 400, lineHeight: 1.05, marginTop: 6 }}>
             <span className="glow-cream">Доброе</span>{" "}
             <span className="glow-gold" style={{ fontStyle: "italic" }}>утро,</span>
           </div>
           <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 30, fontWeight: 700, lineHeight: 1.05, fontStyle: "italic" }}>
-            <span className="glow-cream">Станислав</span>
+            <span className="glow-cream">Гость</span>
           </div>
         </div>
 
-        {/* Cart icon с реальным бейджиком */}
         <Link href="/cart" onClick={() => tap("light")} style={{ position: "relative" }}>
-          <div style={{ width: 46, height: 46, background: "rgba(44, 24, 16, 0.7)", border: "1px solid rgba(232, 166, 100, 0.15)", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", backdropFilter: "blur(8px)" }}>
+          <div style={{ width: 46, height: 46, background: "rgba(44, 24, 16, 0.85)", border: "1px solid rgba(232, 166, 100, 0.25)", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", backdropFilter: "blur(8px)" }}>
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#F5E6D3" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
               <path d="M6 2 L3 6 L3 20 A2 2 0 0 0 5 22 L19 22 A2 2 0 0 0 21 20 L21 6 L18 2 Z"/>
               <line x1="3" y1="6" x2="21" y2="6"/>
@@ -115,11 +123,15 @@ export default function MainPage() {
         </Link>
       </div>
 
-      {/* ── PROMO CAROUSEL — скроллящаяся горизонталь ─── */}
+      {/* ── PROMO CAROUSEL ─────────────────────── */}
       <div className="no-scrollbar" style={{ paddingLeft: 24, marginTop: 20, overflowX: "auto", overflowY: "hidden", position: "relative", zIndex: 2 }}>
         <div style={{ display: "flex", gap: 12, paddingRight: 24 }}>
 
-          <div style={{ minWidth: 300, padding: "18px 20px", background: "linear-gradient(120deg, #2C1810 0%, #3D2515 45%, #1F1108 100%)", borderRadius: 6, border: "1px solid rgba(212, 175, 55, 0.4)", position: "relative", overflow: "hidden" }}>
+          <button
+            type="button"
+            onClick={() => { tap("light"); toast.show(PROMO_INFO.happy.text, PROMO_INFO.happy.kind); }}
+            style={{ minWidth: 300, padding: "18px 20px", background: "linear-gradient(120deg, #2C1810 0%, #3D2515 45%, #1F1108 100%)", borderRadius: 6, border: "1px solid rgba(212, 175, 55, 0.4)", position: "relative", overflow: "hidden", textAlign: "left", cursor: "pointer" }}
+          >
             <svg width="90" height="100" viewBox="0 0 90 100" style={{ position: "absolute", right: -8, top: -8, opacity: 0.35 }}>
               <path d="M20 80 Q16 60 25 45 Q34 30 25 15" stroke="#E8A664" strokeWidth="1" fill="none" strokeLinecap="round"/>
               <path d="M45 90 Q40 68 50 52 Q60 36 50 20" stroke="#D4AF37" strokeWidth="1" fill="none" strokeLinecap="round"/>
@@ -130,9 +142,13 @@ export default function MainPage() {
               <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 30, fontWeight: 900, fontStyle: "italic", color: "#F5E6D3", lineHeight: 1, marginTop: 6 }}>−20%</div>
               <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 14, fontStyle: "italic", color: "#A69080", marginTop: 6 }}>на всё тёмное после 21:00</div>
             </div>
-          </div>
+          </button>
 
-          <div style={{ minWidth: 300, padding: "18px 20px", background: "linear-gradient(120deg, #2C1810 0%, #3D2515 45%, #1F1108 100%)", borderRadius: 6, border: "1px solid rgba(212, 175, 55, 0.25)", position: "relative", overflow: "hidden" }}>
+          <button
+            type="button"
+            onClick={() => { tap("light"); toast.show(PROMO_INFO.bonus.text, PROMO_INFO.bonus.kind); }}
+            style={{ minWidth: 300, padding: "18px 20px", background: "linear-gradient(120deg, #2C1810 0%, #3D2515 45%, #1F1108 100%)", borderRadius: 6, border: "1px solid rgba(212, 175, 55, 0.25)", position: "relative", overflow: "hidden", textAlign: "left", cursor: "pointer" }}
+          >
             <svg width="80" height="90" viewBox="0 0 80 90" style={{ position: "absolute", right: -4, top: -4, opacity: 0.3 }}>
               <polygon points="40 12 46 30 66 30 51 42 57 60 40 50 23 60 29 42 14 30 34 30" fill="none" stroke="#D4AF37" strokeWidth="1"/>
             </svg>
@@ -141,11 +157,11 @@ export default function MainPage() {
               <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 30, fontWeight: 900, fontStyle: "italic", color: "#F5E6D3", lineHeight: 1, marginTop: 6 }}>+50 ☕</div>
               <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 14, fontStyle: "italic", color: "#A69080", marginTop: 6 }}>бонусов за первый заказ</div>
             </div>
-          </div>
+          </button>
         </div>
       </div>
 
-      {/* ── CATEGORY TABS — реальный фильтр ────── */}
+      {/* ── CATEGORY TABS ──────────────────────── */}
       <div style={{ padding: "16px 24px 0", display: "flex", alignItems: "baseline", gap: 22, position: "relative", zIndex: 2 }}>
         {CATEGORIES.map((cat) => {
           const active = cat.key === activeCat;
@@ -155,23 +171,15 @@ export default function MainPage() {
               key={cat.key}
               onClick={() => { setActiveCat(cat.key); tap("light"); }}
               style={{
-                fontFamily: "'Playfair Display', serif",
-                fontSize: 24,
-                fontStyle: "italic",
+                fontFamily: "'Playfair Display', serif", fontSize: 24, fontStyle: "italic",
                 fontWeight: active ? 700 : 400,
                 color: active ? "#F5E6D3" : "#A69080",
                 textShadow: active ? "0 0 20px rgba(232, 166, 100, 0.5), 0 0 4px rgba(232, 166, 100, 0.3)" : undefined,
-                background: "transparent",
-                border: "none",
-                padding: 0,
-                cursor: "pointer",
-                position: "relative",
+                background: "transparent", border: "none", padding: 0, cursor: "pointer", position: "relative",
               }}
             >
               {cat.label}
-              {active && (
-                <div style={{ height: 2, background: "#E8A664", marginTop: 2, width: 32 }}/>
-              )}
+              {active && <div style={{ height: 2, background: "#E8A664", marginTop: 2, width: 32 }}/>}
             </button>
           );
         })}
@@ -180,28 +188,25 @@ export default function MainPage() {
       {/* ── SECTION LABEL ──────────────────────── */}
       <div style={{ padding: "12px 24px 8px", display: "flex", justifyContent: "space-between", alignItems: "center", position: "relative", zIndex: 2 }}>
         <div className="microcaps">— Хит категории</div>
-        <div style={{ fontFamily: "'Cormorant Garamond', serif", fontStyle: "italic", fontSize: 13, color: "#E8A664", textShadow: "0 0 12px rgba(232, 166, 100, 0.35)" }}>
-          {items.length} {items.length === 1 ? "позиция" : items.length < 5 ? "позиции" : "позиций"}
-        </div>
+        <button type="button" onClick={scrollToMenu} style={{ background: "transparent", border: "none", cursor: "pointer", fontFamily: "'Cormorant Garamond', serif", fontStyle: "italic", fontSize: 13, color: "#E8A664", textShadow: "0 0 12px rgba(232, 166, 100, 0.35)" }}>
+          {items.length} {items.length === 1 ? "позиция" : items.length < 5 ? "позиции" : "позиций"} →
+        </button>
       </div>
 
       {/* ── SCROLLABLE MENU ──────────────────── */}
       <div
+        ref={menuScrollRef}
         className="no-scrollbar"
-        style={{
-          flex: 1,
-          overflowY: "auto",
-          padding: "0 24px 8px",
-          position: "relative",
-          zIndex: 2,
-          display: "flex",
-          flexDirection: "column",
-          gap: 10,
-        }}
+        style={{ flex: 1, overflowY: "auto", padding: "0 24px 8px", position: "relative", zIndex: 2, display: "flex", flexDirection: "column", gap: 10 }}
       >
-        {/* Featured большая карточка */}
+        {menuList.isLoading && (
+          <div style={{ padding: "40px 16px", textAlign: "center", color: "#A69080", fontFamily: "'Cormorant Garamond', serif", fontStyle: "italic" }}>
+            Загружаем меню...
+          </div>
+        )}
+
         {featured && (
-          <Link href={`/product/${featured.id}`} onClick={() => tap("light")} style={{ textDecoration: "none" }}>
+          <Link ref={featuredRef as unknown as React.RefObject<HTMLAnchorElement>} href={`/product/${featured.id}`} onClick={() => tap("light")} style={{ textDecoration: "none" }}>
             <div className="glass" style={{ borderRadius: 24, padding: 18, display: "flex", gap: 4, position: "relative", overflow: "hidden", marginBottom: 6 }}>
               <div style={{ position: "absolute", left: -20, top: -20, width: 180, height: 180, background: "radial-gradient(circle, rgba(232, 166, 100, 0.28) 0%, rgba(212, 175, 55, 0.08) 40%, transparent 70%)", pointerEvents: "none" }}/>
 
@@ -229,12 +234,11 @@ export default function MainPage() {
           </Link>
         )}
 
-        {/* Компактные карточки — остальные */}
         {rest.map((item) => (
           <Link href={`/product/${item.id}`} key={item.id} onClick={() => tap("light")} style={{ textDecoration: "none" }}>
             <div className="glass" style={{ borderRadius: 16, padding: "8px 12px 8px 8px", display: "flex", gap: 12, alignItems: "center", position: "relative", overflow: "hidden" }}>
-              <div style={{ width: 62, height: 62, flexShrink: 0, borderRadius: 12, background: "radial-gradient(circle at 40% 40%, rgba(58, 36, 21, 0.5), rgba(20, 10, 5, 0.3))", display: "flex", alignItems: "center", justifyContent: "center", position: "relative", overflow: "hidden" }}>
-                <div style={{ position: "absolute", inset: 0, background: "radial-gradient(circle at 50% 45%, rgba(232, 166, 100, 0.28), transparent 65%)", pointerEvents: "none" }}/>
+              <div style={{ width: 62, height: 62, flexShrink: 0, borderRadius: 12, background: "radial-gradient(circle at 40% 40%, rgba(58, 36, 21, 0.55), rgba(20, 10, 5, 0.4))", display: "flex", alignItems: "center", justifyContent: "center", position: "relative", overflow: "hidden" }}>
+                <div style={{ position: "absolute", inset: 0, background: "radial-gradient(circle at 50% 45%, rgba(232, 166, 100, 0.25), transparent 65%)", pointerEvents: "none" }}/>
                 <ItemIcon variant={item.icon} size={42} />
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
@@ -252,14 +256,13 @@ export default function MainPage() {
           </Link>
         ))}
 
-        {items.length === 0 && (
+        {!menuList.isLoading && items.length === 0 && (
           <div style={{ padding: "40px 16px", textAlign: "center", color: "#A69080", fontFamily: "'Cormorant Garamond', serif", fontStyle: "italic" }}>
             В этой категории пока пусто
           </div>
         )}
       </div>
 
-      {/* ── BOTTOM NAV ─────────────────────────── */}
       <BottomNav active="home" />
     </div>
   );

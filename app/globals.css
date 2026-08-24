@@ -28,8 +28,9 @@
     /* Status */
     --green:     #7A9670;
 
-    /* Glass morphism */
-    --glass-bg:     rgba(30, 15, 8, 0.25);
+    /* Glass morphism — увеличенная непрозрачность,
+     * чтобы SVG-крафт не «светил сквозь» плашки */
+    --glass-bg:     rgba(20, 10, 5, 0.72);
     --glass-border: rgba(212, 175, 55, 0.4);
     --glass-inset:  rgba(232, 166, 100, 0.18);
 

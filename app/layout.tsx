@@ -1,7 +1,9 @@
 import type { Metadata, Viewport } from "next";
 import { Playfair_Display, Manrope, Cormorant_Garamond } from "next/font/google";
 import Script from "next/script";
-import { TelegramProvider } from "@/components/TelegramProvider";
+import { TelegramBoot } from "@/components/TelegramBoot";
+import { QueryProvider } from "@/providers/QueryProvider";
+import { ToastProvider } from "@/components/Toast";
 import "./globals.css";
 
 const playfair = Playfair_Display({
@@ -41,15 +43,10 @@ export const viewport: Viewport = {
   viewportFit: "cover",
 };
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="ru">
       <head>
-        {/* TG SDK — не рушится вне telegram, тихо ждёт window.Telegram */}
         <Script src="https://telegram.org/js/telegram-web-app.js" strategy="beforeInteractive" />
       </head>
       <body
@@ -63,7 +60,11 @@ export default function RootLayout({
           fontFamily: "'Manrope', system-ui, sans-serif",
         }}
       >
-        <TelegramProvider>{children}</TelegramProvider>
+        <QueryProvider>
+          <ToastProvider>
+            <TelegramBoot>{children}</TelegramBoot>
+          </ToastProvider>
+        </QueryProvider>
       </body>
     </html>
   );

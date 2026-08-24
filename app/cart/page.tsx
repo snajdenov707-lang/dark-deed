@@ -8,8 +8,11 @@
  ─────────────────────────────────────────────── */
 
 import Link from "next/link";
+import { useState } from "react";
 import { KraftBackground } from "@/components/KraftBackground";
 import { ItemIcon } from "@/components/ItemIcon";
+import { useValidatePromo } from "@/lib/api";
+import { useToast } from "@/components/Toast";
 import {
   useCart,
   selectSubtotal,
@@ -41,6 +44,34 @@ export default function CartPage() {
   const dec = useCart((s) => s.dec);
   const clear = useCart((s) => s.clear);
   const subtotal = useCart(selectSubtotal);
+  const [promoInput, setPromoInput] = useState("");
+  const [appliedPromo, setAppliedPromo] = useState<{ code: string; discount: number } | null>(null);
+  const validate = useValidatePromo();
+  const toast = useToast();
+
+  const handleApplyPromo = async () => {
+    const code = promoInput.trim();
+    if (!code) return;
+    tap("light");
+    try {
+      const res = await validate.mutateAsync({ code, subtotal });
+      if (res.valid) {
+        setAppliedPromo({ code: res.code ?? code, discount: res.discountAmount });
+        notify("success");
+        toast.show(`Промокод «${res.code}» применён: −${res.discountAmount} ₽`, "success");
+        setPromoInput("");
+      } else {
+        notify("error");
+        toast.show(res.reason ?? "Промокод не действует", "error");
+      }
+    } catch (err) {
+      toast.show("Ошибка проверки промокода", "error");
+    }
+  };
+
+  const discount = appliedPromo?.discount ?? 0;
+  const total = Math.max(0, subtotal - discount);
+  const bonus = Math.round(total * 0.035);
 
   // ── Пустая корзина ──
   if (lines.length === 0) {
@@ -76,7 +107,6 @@ export default function CartPage() {
   }
 
   const totalCount = lines.reduce((s, l) => s + l.quantity, 0);
-  const bonus = Math.round(subtotal * 0.035);
 
   return (
     <div style={{ width: "100%", minHeight: "100dvh", background: "radial-gradient(ellipse at top, #241408 0%, #14090580 45%, #0A0503 100%)", display: "flex", flexDirection: "column", position: "relative", overflowX: "hidden" }}>
@@ -156,17 +186,51 @@ export default function CartPage() {
           </div>
         ))}
 
-        {/* Promo (заглушка) */}
-        <div style={{ background: "#2C1810", borderRadius: 16, padding: "14px 16px", display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        {/* Promo — рабочий */}
+        {appliedPromo ? (
+          <div style={{ background: "#2C1810", border: "1px solid rgba(232, 166, 100, 0.4)", borderRadius: 16, padding: "14px 16px", display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#E8A664" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M20 12v10H4V12"/><path d="M2 7h20v5H2z"/><line x1="12" y1="22" x2="12" y2="7"/>
+              </svg>
+              <div>
+                <div style={{ fontSize: 13, color: "#F5E6D3", fontWeight: 600 }}>{appliedPromo.code}</div>
+                <div style={{ fontSize: 11, color: "#7A9670" }}>−{appliedPromo.discount} ₽</div>
+              </div>
+            </div>
+            <button type="button" onClick={() => { setAppliedPromo(null); tap("light"); }} style={{ background: "transparent", border: "none", color: "#A69080", fontSize: 12, cursor: "pointer" }}>Убрать</button>
+          </div>
+        ) : (
+          <div style={{ background: "#2C1810", borderRadius: 16, padding: "10px 12px 10px 16px", display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#E8A664" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
               <path d="M20 12v10H4V12"/><path d="M2 7h20v5H2z"/><line x1="12" y1="22" x2="12" y2="7"/>
-              <path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/>
             </svg>
-            <span style={{ fontSize: 13, color: "#A69080" }}>Промокод</span>
+            <input
+              type="text"
+              value={promoInput}
+              onChange={(e) => setPromoInput(e.target.value.toUpperCase())}
+              onKeyDown={(e) => { if (e.key === "Enter") handleApplyPromo(); }}
+              placeholder="Промокод"
+              autoCapitalize="characters"
+              spellCheck={false}
+              style={{ flex: 1, background: "transparent", border: "none", outline: "none", color: "#F5E6D3", fontFamily: "'Manrope', sans-serif", fontSize: 13, padding: "4px 0" }}
+            />
+            <button
+              type="button"
+              onClick={handleApplyPromo}
+              disabled={!promoInput.trim() || validate.isPending}
+              style={{
+                padding: "8px 14px", borderRadius: 10,
+                background: promoInput.trim() ? "linear-gradient(135deg, #E8A664, #D4AF37)" : "#3A2415",
+                color: promoInput.trim() ? "#1A0F0A" : "#6B5A4C",
+                fontSize: 12, fontWeight: 600, border: "none",
+                cursor: promoInput.trim() ? "pointer" : "not-allowed",
+              }}
+            >
+              {validate.isPending ? "..." : "Применить"}
+            </button>
           </div>
-          <span style={{ fontSize: 12, color: "#E8A664", fontWeight: 500 }}>Применить →</span>
-        </div>
+        )}
 
         {/* Bonus hint */}
         <div style={{ padding: "8px 16px", display: "flex", justifyContent: "space-between", fontSize: 12, color: "#A69080" }}>
@@ -181,15 +245,21 @@ export default function CartPage() {
           <span>Подытог</span>
           <span>{subtotal.toLocaleString("ru-RU")} ₽</span>
         </div>
+        {discount > 0 && (
+          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, fontSize: 13, color: "#7A9670" }}>
+            <span>Скидка ({appliedPromo?.code})</span>
+            <span>−{discount.toLocaleString("ru-RU")} ₽</span>
+          </div>
+        )}
         <div style={{ height: 1, background: "rgba(166, 144, 128, 0.15)", marginBottom: 14 }}/>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 16 }}>
           <span style={{ fontFamily: "'Playfair Display', serif", fontSize: 15, color: "#F5E6D3", fontWeight: 600 }}>Итого</span>
           <span style={{ fontFamily: "'Playfair Display', serif", fontSize: 26, color: "#E8A664", fontWeight: 700 }}>
-            {subtotal.toLocaleString("ru-RU")} ₽
+            {total.toLocaleString("ru-RU")} ₽
           </span>
         </div>
         <Link
-          href="/checkout"
+          href={`/checkout${appliedPromo ? `?promo=${encodeURIComponent(appliedPromo.code)}&discount=${appliedPromo.discount}` : ""}`}
           onClick={() => tap("medium")}
           style={{ display: "flex", height: 52, background: "#E8A664", borderRadius: 16, alignItems: "center", justifyContent: "center", textDecoration: "none" }}
         >
