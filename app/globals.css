@@ -1,26 +1,149 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
+/* ─────────────────────────────────────────────
+   DARK DEED — Design Tokens
+   Тёмный шоколадный крафт-фон, золотые акценты
+──────────────────────────────────────────────── */
+@layer base {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    /* Backgrounds */
+    --bg-deep:   #0F0805;
+    --bg-dark:   #1A0F0A;
+    --bg-card:   #2C1810;
+    --bg-card2:  #3A2415;
+    --bg-input:  #2C1810;
+
+    /* Typography */
+    --cream:     #F5E6D3;
+    --cream-dim: rgba(245, 230, 211, 0.8);
+    --muted:     #A69080;
+    --muted-dim: #6B5A4C;
+
+    /* Gold accents */
+    --gold:      #E8A664;
+    --gold-deep: #D4AF37;
+    --gold-dim:  rgba(232, 166, 100, 0.35);
+    --gold-glow: rgba(232, 166, 100, 0.55);
+
+    /* Status */
+    --green:     #7A9670;
+
+    /* Glass morphism */
+    --glass-bg:     rgba(30, 15, 8, 0.25);
+    --glass-border: rgba(212, 175, 55, 0.4);
+    --glass-inset:  rgba(232, 166, 100, 0.18);
+
+    /* Safe area — учитывает Dynamic Island / notch / home indicator */
+    --safe-top:    env(safe-area-inset-top, 0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+    --safe-left:   env(safe-area-inset-left, 0px);
+    --safe-right:  env(safe-area-inset-right, 0px);
+    /* TG хедер плюс запас — 44px это минимум, чтобы кнопка «‹» не залезла под системный бар */
+    --top-inset:   max(var(--safe-top), 12px);
+  }
+
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  html, body {
+    background: var(--bg-dark);
+    color: var(--cream);
+    font-family: 'Manrope', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+
+    /* Блокируем любой горизонтальный swipe / оверскролл */
+    overflow-x: hidden;
+    overscroll-behavior: none;
+    /* Разрешаем только вертикальный тач (иначе весь экран уезжает вбок) */
+    touch-action: pan-y;
+
+    width: 100%;
+    max-width: 100vw;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* ── Utility classes ── */
+@layer utilities {
+  .glass {
+    background: var(--glass-bg);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1px solid var(--glass-border);
+    box-shadow:
+      inset 0 1px 0 var(--glass-inset),
+      0 4px 20px rgba(0,0,0,0.25);
+  }
+
+  .glow-cream {
+    color: var(--cream);
+    text-shadow:
+      0 0 22px rgba(245, 230, 211, 0.5),
+      0 0 4px rgba(245, 230, 211, 0.3);
+  }
+  .glow-gold {
+    color: var(--gold);
+    text-shadow:
+      0 0 20px rgba(232, 166, 100, 0.55),
+      0 0 4px rgba(232, 166, 100, 0.35);
+  }
+
+  .gold-line {
+    height: 1px;
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      var(--gold-deep) 20%,
+      var(--gold-deep) 80%,
+      transparent 100%
+    );
+    opacity: 0.4;
+  }
+
+  .microcaps {
+    font-size: 10px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--gold);
+    font-weight: 500;
+    text-shadow: 0 0 14px rgba(232, 166, 100, 0.4);
+  }
+
+  .opt {
+    padding: 11px 16px;
+    border-radius: 999px;
+    font-size: 13px;
+    font-weight: 500;
+    background: rgba(30, 15, 8, 0.35);
+    backdrop-filter: blur(6px);
+    color: #C4B5A5;
+    border: 1px solid rgba(212, 175, 55, 0.35);
+    box-shadow: inset 0 1px 0 rgba(232, 166, 100, 0.12);
+    font-family: 'Manrope', sans-serif;
+  }
+  .opt-on {
+    padding: 11px 16px;
+    border-radius: 999px;
+    font-size: 13px;
+    font-weight: 600;
+    background: linear-gradient(135deg, var(--gold), var(--gold-deep));
+    color: #1A0F0A;
+    border: 1px solid var(--gold);
+    box-shadow: 0 4px 16px rgba(232, 166, 100, 0.35);
+  }
+
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+  .no-scrollbar { scrollbar-width: none; -ms-overflow-style: none; }
+
+  .font-playfair  { font-family: 'Playfair Display', serif; }
+  .font-cormorant { font-family: 'Cormorant Garamond', serif; }
+  .font-manrope   { font-family: 'Manrope', sans-serif; }
+
+  /* Отступ сверху под системный бар (Dynamic Island, notch, TG хедер) */
+  .with-safe-top {
+    padding-top: calc(var(--top-inset) + 22px);
+  }
 }
