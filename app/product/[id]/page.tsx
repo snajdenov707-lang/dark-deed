@@ -14,6 +14,7 @@ import { KraftBackground } from "@/components/KraftBackground";
 import { ItemIcon } from "@/components/ItemIcon";
 import { getMenuItem } from "@/lib/menu";
 import { useMenu } from "@/lib/api";
+import { useFavorites } from "@/stores/favorites-store";
 import { useToast } from "@/components/Toast";
 import {
   useCart,
@@ -48,6 +49,16 @@ export default function ProductPage() {
   const [quantity, setQuantity] = useState(1);
 
   const add = useCart((s) => s.add);
+  const favIds = useFavorites((s) => s.ids);
+  const toggleFav = useFavorites((s) => s.toggle);
+  const isFav = item ? favIds.includes(item.id) : false;
+
+  const handleToggleFav = () => {
+    if (!item) return;
+    tap("light");
+    toggleFav(item.id);
+    toast.show(isFav ? "Убрано из избранного" : "Добавлено в избранное", isFav ? "info" : "success");
+  };
 
   // Если товар не найден — предложим вернуться в меню
   if (!item) {
@@ -100,11 +111,16 @@ export default function ProductPage() {
           </div>
         </Link>
         <div className="microcaps" style={{ color: "#6B5A4C" }}>N°{String(item.id).padStart(2, "0")} · {item.category === "espresso" ? "ЭСПРЕССО-БАР" : item.category === "alternative" ? "АЛЬТЕРНАТИВА" : "ДЕСЕРТЫ"}</div>
-        <div style={{ width: 44, height: 44, background: "rgba(44, 24, 16, 0.7)", backdropFilter: "blur(10px)", border: "1px solid rgba(232, 166, 100, 0.15)", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="#E8A664" stroke="#E8A664" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <button
+          type="button"
+          onClick={handleToggleFav}
+          aria-label={isFav ? "Убрать из избранного" : "В избранное"}
+          style={{ width: 44, height: 44, background: "rgba(44, 24, 16, 0.7)", backdropFilter: "blur(10px)", border: "1px solid rgba(232, 166, 100, 0.15)", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", padding: 0 }}
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill={isFav ? "#E8A664" : "none"} stroke="#E8A664" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
             <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
           </svg>
-        </div>
+        </button>
       </div>
 
       {/* HERO CARD */}

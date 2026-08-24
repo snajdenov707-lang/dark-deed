@@ -217,6 +217,92 @@ export interface PromoValidation {
   code?: string;
 }
 
+// ── USER STATS ──────────────────────────────
+export interface UserStats {
+  orders_count: number;
+  total_spent: number;
+  bonus_balance: number;
+  favorite_category: string | null;
+}
+
+export function useUserStats() {
+  return useQuery({
+    queryKey: ["user-stats"],
+    queryFn: async (): Promise<UserStats> => {
+      const sb = getSupabase();
+      const { data: user } = await sb.auth.getUser();
+      if (!user?.user) return { orders_count: 0, total_spent: 0, bonus_balance: 0, favorite_category: null };
+      const { data, error } = await sb.rpc("get_user_stats").single();
+      if (error) throw error;
+      const row = data as unknown as Record<string, unknown>;
+      return {
+        orders_count: Number(row?.orders_count ?? 0),
+        total_spent: Number(row?.total_spent ?? 0),
+        bonus_balance: Number(row?.bonus_balance ?? 0),
+        favorite_category: (row?.favorite_category as string | null) ?? null,
+      };
+    },
+    staleTime: 30_000,
+  });
+}
+
+// ── ORDER HISTORY ───────────────────────────
+export function useOrderHistory() {
+  return useQuery({
+    queryKey: ["orders"],
+    queryFn: async (): Promise<(DbOrder & { order_items: DbOrderItem[] })[]> => {
+      const sb = getSupabase();
+      const { data: user } = await sb.auth.getUser();
+      if (!user?.user) return [];
+      const { data, error } = await sb
+        .from("orders")
+        .select("*, order_items(*)")
+        .order("created_at", { ascending: false })
+        .limit(50);
+      if (error) throw error;
+      return (data as (DbOrder & { order_items: DbOrderItem[] })[]) ?? [];
+    },
+  });
+}
+
+export function useOrderById(id: string | undefined) {
+  return useQuery({
+    queryKey: ["order", id],
+    enabled: !!id,
+    queryFn: async () => {
+      if (!id) return null;
+      const { data, error } = await getSupabase()
+        .from("orders")
+        .select("*, order_items(*)")
+        .eq("id", id)
+        .maybeSingle();
+      if (error) throw error;
+      return data as (DbOrder & { order_items: DbOrderItem[] }) | null;
+    },
+  });
+}
+
+// ── TG USER META (из Supabase session) ──────
+export interface TgProfile {
+  telegram_id?: number;
+  first_name?: string;
+  last_name?: string;
+  username?: string;
+  photo_url?: string;
+}
+
+export function useTgProfile() {
+  return useQuery({
+    queryKey: ["tg-profile"],
+    queryFn: async (): Promise<TgProfile> => {
+      const { data } = await getSupabase().auth.getUser();
+      return (data?.user?.user_metadata ?? {}) as TgProfile;
+    },
+    staleTime: 5 * 60_000,
+  });
+}
+
+// ── PROMO ───────────────────────────────────
 export function useValidatePromo() {
   return useMutation({
     mutationFn: async ({ code, subtotal }: { code: string; subtotal: number }): Promise<PromoValidation> => {

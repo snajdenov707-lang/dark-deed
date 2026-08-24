@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useCart, selectTotalCount } from "@/stores/cart-store";
-import { useToast } from "@/components/Toast";
 import { tap } from "@/lib/haptic";
 
 type Tab = "home" | "search" | "orders" | "profile";
@@ -14,7 +13,6 @@ interface BottomNavProps {
 /** Плавающая стеклянная нижняя навигация — реальные ссылки + бейдж корзины */
 export function BottomNav({ active = "home" }: BottomNavProps) {
   const cartCount = useCart(selectTotalCount);
-  const toast = useToast();
 
   const dot = (tab: Tab) =>
     active === tab ? (
@@ -24,12 +22,6 @@ export function BottomNav({ active = "home" }: BottomNavProps) {
     );
 
   const iconColor = (tab: Tab) => (active === tab ? "#E8A664" : "#8B7768");
-
-  const soon = (label: string) => (e: React.MouseEvent) => {
-    e.preventDefault();
-    tap("light");
-    toast.show(`${label} — скоро`, "info");
-  };
 
   return (
     <div style={{ margin: "10px 20px", marginBottom: "calc(var(--safe-bottom) + 20px)", position: "relative", zIndex: 3 }}>
@@ -45,17 +37,17 @@ export function BottomNav({ active = "home" }: BottomNavProps) {
           {dot("home")}
         </Link>
 
-        {/* Search — placeholder (В разработке) */}
-        <button type="button" onClick={soon("Поиск")} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 5, background: "transparent", border: "none", cursor: "pointer", padding: 0 }}>
+        {/* Search — реальная страница */}
+        <Link href="/search" onClick={() => tap("light")} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 5 }}>
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={iconColor("search")} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
             <circle cx="11" cy="11" r="8"/>
             <line x1="21" y1="21" x2="16.65" y2="16.65"/>
           </svg>
           {dot("search")}
-        </button>
+        </Link>
 
-        {/* Orders — реальный статус */}
-        <Link href="/order-status" onClick={() => tap("light")} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 5, position: "relative" }}>
+        {/* Orders — история заказов */}
+        <Link href="/orders" onClick={() => tap("light")} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 5, position: "relative" }}>
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={iconColor("orders")} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
             <rect x="4" y="4" width="16" height="16" rx="2"/>
             <line x1="9" y1="9"  x2="15" y2="9"/>
@@ -65,14 +57,14 @@ export function BottomNav({ active = "home" }: BottomNavProps) {
           {dot("orders")}
         </Link>
 
-        {/* Profile — placeholder */}
-        <button type="button" onClick={soon("Профиль")} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 5, background: "transparent", border: "none", cursor: "pointer", padding: 0 }}>
+        {/* Profile — реальная страница */}
+        <Link href="/profile" onClick={() => tap("light")} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 5 }}>
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={iconColor("profile")} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
             <circle cx="12" cy="8" r="4"/>
             <path d="M4 21 Q4 14 12 14 Q20 14 20 21"/>
           </svg>
           {dot("profile")}
-        </button>
+        </Link>
 
         {/* Cart shortcut с бейджиком */}
         <Link href="/cart" onClick={() => tap("light")} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 5, position: "relative" }}>

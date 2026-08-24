@@ -20,7 +20,19 @@ const BACK_ROUTES: Record<string, string> = {
   "/cart":         "/main",
   "/checkout":     "/cart",
   "/order-status": "/main",
+  "/search":       "/main",
+  "/profile":      "/main",
+  "/orders":       "/profile",
+  "/favorites":    "/profile",
 };
+
+/** Для динамических роутов — фолбэк по startsWith */
+function backTargetFor(pathname: string): string | undefined {
+  if (BACK_ROUTES[pathname]) return BACK_ROUTES[pathname];
+  if (pathname.startsWith("/product/")) return "/main";
+  if (pathname.startsWith("/orders/"))  return "/orders";
+  return undefined;
+}
 
 function safeCall<T>(fn: () => T): T | undefined {
   try { return fn(); } catch { return undefined; }
@@ -150,7 +162,7 @@ export function TelegramBoot({ children }: { children: React.ReactNode }) {
     const backBtn = tg?.BackButton;
     if (!backBtn) return;
 
-    const target = pathname ? BACK_ROUTES[pathname] : undefined;
+    const target = pathname ? backTargetFor(pathname) : undefined;
     const goBack = () => { if (target) router.push(target); };
 
     if (target && pathname !== "/") {
