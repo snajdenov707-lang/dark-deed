@@ -7,8 +7,12 @@
 
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+/** .trim() + strip кавычек — защита от «мусора» из env
+ *  (PowerShell pipe в vercel env иногда добавляет кавычки/BOM/CR,
+ *   а Headers/URLs роняют всё приложение при не-ASCII символе). */
+const clean = (v?: string) => (v ?? "").trim().replace(/^["']|["']$/g, "");
+const SUPABASE_URL = clean(process.env.NEXT_PUBLIC_SUPABASE_URL);
+const SUPABASE_KEY = clean(process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY);
 
 if (!SUPABASE_URL || !SUPABASE_KEY) {
   // На билде — предупреждение, но не падаем: клиент может использоваться позже.

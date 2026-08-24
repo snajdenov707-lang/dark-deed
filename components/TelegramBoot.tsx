@@ -100,16 +100,17 @@ export function TelegramBoot({ children }: { children: React.ReactNode }) {
 
       // POST в edge tg-auth
       try {
-        const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-        const anonKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-        if (!url || !anonKey) throw new Error("supabase env missing");
+        // .trim() + strip кавычек — защита от «мусора» из env
+        // (PowerShell pipe в vercel env иногда добавляет кавычки/BOM/CR)
+        const clean = (v?: string) => (v ?? "").trim().replace(/^["']|["']$/g, "");
+        const url = clean(process.env.NEXT_PUBLIC_SUPABASE_URL);
+        if (!url) throw new Error("supabase env missing");
 
+        // apikey не передаём — функция задеплоена с verify_jwt: false
+        // (Content-Type + body — ASCII-only)
         const res = await fetch(`${url}/functions/v1/tg-auth`, {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            apikey: anonKey,
-          },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ initData }),
         });
 
