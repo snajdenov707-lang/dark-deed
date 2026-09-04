@@ -178,7 +178,7 @@ dark-deed/
 
 **Найденов Станислав** — студент Университета «Синергия», 3 курс
 
-Telegram: [@_ (замени на свой ник)](https://t.me/)
+Telegram: [@_ (@khrustiks42)](https://t.me/)
 Email: snajdenov707@gmail.com
 
 ---
