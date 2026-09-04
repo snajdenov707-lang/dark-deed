@@ -147,17 +147,19 @@ dark-deed/
 
 ## 🖼 Скриншоты
 
-<!-- Замени плейсхолдеры на свои скрины: положи PNG в docs/screenshots/ -->
-
-![Splash-экран](docs/screenshots/splash.png)
-
-![Главная — меню и промо](docs/screenshots/main.png)
-
-![Карточка товара](docs/screenshots/product.png)
-
-![Корзина](docs/screenshots/cart.png)
-
-![Оформление и статус](docs/screenshots/checkout.png)
+<table>
+  <tr>
+    <td align="center"><img src="docs/screenshots/boot.png"          alt="Загрузка"  width="220"/><br/><sub>Загрузка</sub></td>
+    <td align="center"><img src="docs/screenshots/splash.png"        alt="Splash"    width="220"/><br/><sub>Splash</sub></td>
+    <td align="center"><img src="docs/screenshots/main.png"          alt="Главная"   width="220"/><br/><sub>Меню и промо</sub></td>
+    <td align="center"><img src="docs/screenshots/product.png"       alt="Товар"     width="220"/><br/><sub>Карточка товара</sub></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="docs/screenshots/cart.png"          alt="Корзина"   width="220"/><br/><sub>Корзина + промокод</sub></td>
+    <td align="center"><img src="docs/screenshots/checkout.png"      alt="Оплата"    width="220"/><br/><sub>Оформление</sub></td>
+    <td align="center" colspan="2"><img src="docs/screenshots/order-status.png" alt="Статус заказа" width="220"/><br/><sub>Статус заказа</sub></td>
+  </tr>
+</table>
 
 ---
 
